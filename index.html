@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f1f9fc" />
+    <title>オタマトーン練習サイト</title>
+    <meta
+      name="description"
+      content="オタマトーンの音程をブラウザでチェック。マイクやライン入力でチューナーを使い、MusicXMLの楽譜に合わせて練習できます。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary" />
+    <meta property="og:title" content="オタマトーン練習サイト" />
+    <meta
+      property="og:description"
+      content="オタマトーンの音程をブラウザでチェック。マイクやライン入力でチューナーを使い、MusicXMLの楽譜に合わせて練習できます。"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/src/assets/mini-otama.svg?no-inline"
+    />
+  </head>
+  <body>
+    <main class="shell">
+      <div class="workspace-nav">
+        <h1>オタマトーン練習サイト</h1>
+      </div>
+      <section class="card input-bar" aria-label="音声入力">
+        <label class="device-control"
+          >音声入力
+          <select id="device">
+            <option value="">システムの既定</option>
+          </select></label
+        >
+        <microphone id="input-permission" hidden></microphone>
+        <button
+          id="input-toggle"
+          class="icon-button"
+          type="button"
+          aria-label="入力を開始"
+          title="入力を開始"
+        >
+          <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="12" rx="3" />
+            <path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8" />
+          </svg>
+          <svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" fill="currentColor" />
+          </svg>
+        </button>
+        <button id="input-resume" class="primary" type="button" hidden>
+          音程検出を開始
+        </button>
+        <span id="input-status" class="status" role="status">入力オフ</span>
+      </section>
+      <div class="live-pitch" aria-label="チューナー">
+        <div class="live-reading">
+          <span>入力音</span><strong id="live-note">—</strong
+          ><span id="live-frequency">— Hz</span
+          ><span id="live-cents" hidden></span>
+          <span
+            id="pitch-signal"
+            class="pitch-signal"
+            role="img"
+            aria-label="音を待っています"
+            title="音を待っています"
+            hidden
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 9v6" />
+              <path d="M12 4v16" />
+              <path d="M19 9v6" />
+            </svg>
+          </span>
+        </div>
+        <div id="tuner-notes" class="tuner-notes" aria-hidden="true">
+          <div class="tuner-note-cells"></div>
+          <span class="tuner-note-marker" hidden></span>
+        </div>
+      </div>
+      <section id="practice">
+        <div class="card score-panel">
+          <div class="heading-row">
+            <h2>楽譜</h2>
+            <div class="controls score-tools">
+              <label id="demo-key-control"
+                ><span class="sr-only">音階の調</span
+                ><select id="demo-key"></select
+              ></label>
+              <button id="demo" type="button" hidden>音階練習に戻る</button>
+              <label id="part-control" hidden
+                ><span class="sr-only">パート</span
+                ><select id="part" disabled>
+                  <option>—</option>
+                </select></label
+              >
+              <button
+                id="open-score"
+                class="icon-button"
+                type="button"
+                aria-label="楽譜を選ぶ"
+                title="楽譜を選ぶ"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 19V5h6l3 3h9v3M3 19l4-8h15l-4 8z" />
+                </svg>
+              </button>
+              <input
+                id="file"
+                type="file"
+                accept=".musicxml,.xml,.mxl"
+                hidden
+              />
+            </div>
+          </div>
+          <p id="score-status" class="status" role="status"></p>
+          <div
+            id="score"
+            role="region"
+            tabindex="0"
+            aria-label="読み込んだ楽譜"
+            hidden
+          ></div>
+        </div>
+        <div class="card pitch-panel">
+          <div class="heading-row practice-heading">
+            <h2 id="practice-heading">音程バー</h2>
+            <span id="feedback" class="badge">楽譜を読み込んでください</span>
+            <div class="practice-status">
+              <p id="position" class="status">—</p>
+              <p id="count-in" class="count-in" role="status" hidden></p>
+            </div>
+          </div>
+          <div class="controls">
+            <label
+              ><span class="mode-label">進め方</span>
+              <select id="practice-mode" aria-label="進め方">
+                <option value="timed">テンポに合わせる</option>
+                <option value="step">音程が合ったら次へ</option>
+              </select></label
+            >
+            <button class="primary" id="play" type="button" disabled>
+              練習を開始
+            </button>
+            <button id="reset" type="button" disabled>先頭へ</button>
+            <label id="speed-control"
+              ><span class="sr-only">練習速度</span>
+              <select id="speed" title="練習速度">
+                <option value="0.5">50%</option>
+                <option value="0.75">75%</option>
+                <option value="1" selected>100%</option>
+                <option value="1.25">125%</option>
+              </select></label
+            >
+            <button
+              id="repeat-practice"
+              class="icon-button"
+              type="button"
+              aria-label="曲全体を繰り返す"
+              aria-pressed="false"
+              title="曲全体を繰り返す"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="m17 2 4 4-4 4M3 11V8a2 2 0 0 1 2-2h16M7 22l-4-4 4-4m14-1v3a2 2 0 0 1-2 2H3"
+                />
+              </svg>
+            </button>
+          </div>
+          <div id="timed-display">
+            <canvas
+              id="chart"
+              aria-label="目標音程と演奏音程の時間グラフ"
+            ></canvas>
+          </div>
+          <div id="step-display" hidden>
+            <p class="step-goal">
+              目標音 <strong id="step-note">—</strong
+              ><span>入力音 <b id="step-input">—</b></span>
+            </p>
+            <div id="step-notes" class="tuner-notes" aria-hidden="true">
+              <div class="tuner-note-cells"></div>
+              <span class="tuner-note-marker" hidden></span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer>マイクの音声と楽譜はブラウザ内で処理されます。</footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "otamatone-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.21.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "opensheetmusicdisplay": "^2.3.1",
+    "pitchy": "^4.1.0"
+  },
+  "devDependencies": {
+    "prettier": "3.10.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}
