@@ -3,6 +3,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
 import { createRef, ref } from 'lit/directives/ref.js';
 import { styleMap } from 'lit/directives/style-map.js';
+import githubLogoUrl from './assets/GitHub_Invertocat_Black.svg';
 import { scaleKeys } from './demo';
 import { centsFrom, noteName } from './pitch';
 import {
@@ -84,7 +85,17 @@ class OtamatoneApp extends LitElement {
   protected override render() {
     return html`
       <main class="shell">
-        <div class="workspace-nav"><h1>オタマトーン練習サイト</h1></div>
+        <div class="workspace-nav">
+          <h1>オタマトーン練習サイト</h1>
+          <a
+            class="github-link"
+            href="https://github.com/kamekyame/otamatone-web"
+            target="_blank"
+            aria-label="GitHub でソースコードを見る"
+          >
+            <img src=${githubLogoUrl} alt="" width="98" height="96" />
+          </a>
+        </div>
         ${this.renderInput()} ${this.renderTuner()}
         <section id="practice">
           ${this.renderScore()} ${this.renderPractice()}
