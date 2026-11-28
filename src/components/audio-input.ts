@@ -80,11 +80,7 @@ export class AudioInput extends LitElement {
       <section class="controls input-bar" aria-label="音声入力">
         <label class="device-control">
           音声入力
-          <select
-            id="device"
-            ?disabled=${view.inputBusy}
-            @change=${this.onDeviceChange}
-          >
+          <select id="device" @change=${this.onDeviceChange}>
             <option value="" .selected=${live(view.device === '')}>
               システムの既定
             </option>

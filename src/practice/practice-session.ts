@@ -997,9 +997,13 @@ export function createPracticeSession(host: LitElement) {
     return load(async () => makeScaleDemo(key), true);
   }
   function selectDevice(value: string) {
+    if (value === view.device) return;
+    const restart = Boolean(audio || requesting);
+    if (restart) stopInput();
     view.device = value;
     configureNativeInput();
     host.requestUpdate();
+    if (restart) void startInput();
   }
   function toggleInput() {
     if (audio || requesting) stopInput();
