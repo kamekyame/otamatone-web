@@ -71,12 +71,8 @@ export function createPracticeSession(host: LitElement) {
     allowOctave: true,
     speed: '1',
     repeat: false,
-    playLabel: '練習を開始',
     playing: false,
-    countIn: '',
     countInBeat: 0,
-    position: '—',
-    feedback: text('楽譜を読み込んでください'),
   };
   let sheet: HTMLElement;
   let canvas: HTMLCanvasElement;
@@ -125,7 +121,6 @@ export function createPracticeSession(host: LitElement) {
 
   let pitch: Pitch | null = null;
   let pitchReadout: ReturnType<typeof updatePitchReadout> = null;
-  let lastPitchTarget: ReturnType<typeof targetAt>;
   let audio:
     | {
         context: AudioContext;
@@ -223,7 +218,6 @@ export function createPracticeSession(host: LitElement) {
     }
     pitch = null;
     pitchReadout = null;
-    lastPitchTarget = undefined;
     stepGate.interrupt();
     clearStepGuide();
     historyBreak = true;
@@ -262,7 +256,6 @@ export function createPracticeSession(host: LitElement) {
     } else {
       pitch = null;
       pitchReadout = null;
-      lastPitchTarget = undefined;
       stepGate.interrupt();
       clearStepGuide();
       historyBreak = true;
@@ -467,9 +460,6 @@ export function createPracticeSession(host: LitElement) {
     if (model) {
       const beat = stepTarget?.start ?? model.beatAt(seconds);
       syncCursor(beat);
-      const measure =
-        model.measures[lastAt(model.measures, beat + 1e-7, (x) => x.at)];
-      const measureLabel = measure ? `小節 ${measure.number}　·　` : '';
       const target = stepMode ? stepTarget : targetAt(beat);
       view.targetMidi = target?.midi;
       view.tunerStart = pitchRangeStart(
@@ -477,52 +467,9 @@ export function createPracticeSession(host: LitElement) {
         displayPitch?.midi,
         target?.midi,
       );
-      const total = model.secondsAt(model.end);
-      const done = seconds >= total;
-      view.position = notes
-        ? `${stepIndex} / ${notes.length} 音クリア${done || !measure ? '' : `　·　小節 ${measure.number}`}`
-        : `${measureLabel}${seconds.toFixed(1)} / ${total.toFixed(1)} 秒`;
-      const judgedPitch = lastPitchTarget === target ? displayPitch : undefined;
-      if (done) status(view.feedback, '練習終了', 'good');
-      else if (!target) status(view.feedback, '休符・演奏なし');
-      else if (!playing || countBeatMs || !audio)
-        status(
-          view.feedback,
-          `目標 ${noteName(target.midi)}${stepMode && playing && !audio ? ' · 音声入力を開始してください' : ''}`,
-        );
-      else if (!judgedPitch)
-        status(
-          view.feedback,
-          `目標 ${noteName(target.midi)}${displayPitch ? ' · 判定中' : ''}`,
-        );
-      else {
-        const cents = centsFrom(
-          pitchForTarget(judgedPitch.midi, target.midi, view.allowOctave),
-          target.midi,
-        );
-        const hit = isMatch(cents);
-        const octaveDelta = Math.round((judgedPitch.midi - target.midi) / 12);
-        const octaveMismatch =
-          octaveDelta !== 0 &&
-          isMatch(centsFrom(judgedPitch.midi, target.midi + octaveDelta * 12));
-        const inputLabel = `入力 ${noteName(judgedPitch.midi)}${
-          octaveMismatch
-            ? ` · ${Math.abs(octaveDelta)}オクターブ${octaveDelta > 0 ? '高い' : '低い'}`
-            : ''
-        }`;
-        status(
-          view.feedback,
-          hit
-            ? `目標 ${noteName(target.midi)} · ${octaveMismatch ? `${inputLabel} · 合っています（許容中）` : '合っています'}`
-            : `目標 ${noteName(target.midi)} · ${inputLabel}`,
-          hit ? 'good' : 'error',
-        );
-      }
     } else {
       view.targetMidi = undefined;
       view.tunerStart = pitchRangeStart(view.tunerStart, displayPitch?.midi);
-      status(view.feedback, '楽譜を読み込んでください');
-      view.position = '—';
     }
     host.requestUpdate();
     drawChart();
@@ -711,11 +658,9 @@ export function createPracticeSession(host: LitElement) {
     if (countBeatMs) {
       if (now < playbackAnchor) {
         const count = Math.ceil((playbackAnchor - now) / countBeatMs);
-        view.countIn = `開始まで ${count} 拍`;
         view.countInBeat = count;
       } else {
         clearCountIn();
-        view.playLabel = '一時停止';
         host.requestUpdate();
       }
     }
@@ -742,7 +687,6 @@ export function createPracticeSession(host: LitElement) {
           const matched =
             midi !== undefined && isMatch(centsFrom(midi, note.midi));
           if (midi !== undefined) {
-            lastPitchTarget = note;
             plotPlayedNote(note, midi, matched);
           }
           const advanced = stepGate.sample(now, matched);
@@ -788,7 +732,6 @@ export function createPracticeSession(host: LitElement) {
             clearStepGuide();
             const next = notes[++stepIndex];
             seconds = next ? model.secondsAt(next.start) : total;
-            lastPitchTarget = undefined;
             const upcoming = next ?? (view.repeat ? notes[0] : undefined);
             stepGate.reset(
               upcoming !== undefined &&
@@ -809,7 +752,6 @@ export function createPracticeSession(host: LitElement) {
         seconds < total
       ) {
         const note = targetAt(model.beatAt(seconds));
-        lastPitchTarget = note;
         const midi = note
           ? pitchForTarget(stablePitch.midi, note.midi, view.allowOctave)
           : stablePitch.midi;
@@ -833,7 +775,6 @@ export function createPracticeSession(host: LitElement) {
         resetPracticePosition();
         playbackAnchor = now;
         playbackOffset = seconds;
-        lastPitchTarget = undefined;
       } else pause();
     }
     if (now - lastDraw >= 30) {
@@ -845,7 +786,6 @@ export function createPracticeSession(host: LitElement) {
 
   function clearCountIn() {
     countBeatMs = 0;
-    view.countIn = '';
     view.countInBeat = 0;
   }
 
@@ -855,15 +795,7 @@ export function createPracticeSession(host: LitElement) {
     stepGate.interrupt();
     clearStepGuide();
     historyBreak = true;
-    lastPitchTarget = undefined;
     clearCountIn();
-    const advanced = view.stepMode ? stepIndex > 0 : seconds > 0;
-    view.playLabel =
-      model && seconds >= model.secondsAt(model.end)
-        ? 'もう一度練習'
-        : advanced
-          ? '練習を再開'
-          : '練習を開始';
     updateView();
   }
 
@@ -914,13 +846,11 @@ export function createPracticeSession(host: LitElement) {
     playbackRate = Number(view.speed);
     if (!view.stepMode && seconds === 0) {
       countBeatMs = (model.secondsPerBeatAt(0) * 1000) / playbackRate;
-      view.countIn = '開始まで 4 拍';
       view.countInBeat = 4;
     }
     playbackAnchor = performance.now() + countBeatMs * 4;
     playing = true;
     view.playing = true;
-    view.playLabel = countBeatMs ? 'カウントを中止' : '一時停止';
     host.requestUpdate();
     scheduleFrame();
   }

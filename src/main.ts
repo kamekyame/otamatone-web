@@ -76,21 +76,15 @@ class OtamatoneApp extends LitElement {
         font: inherit;
         cursor: pointer;
       }
-      footer {
-        color: var(--muted);
-        font-size: 0.7rem;
-        line-height: 1.3;
-      }
       @media (min-width: 48rem) {
         .shell {
           height: 100svh;
           min-height: 100svh;
-          grid-template-rows: auto auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto minmax(0, 1fr);
         }
         otama-app-header,
         otama-practice-controls,
-        #workspace,
-        footer {
+        #workspace {
           grid-column: 1 / -1;
         }
       }
@@ -177,7 +171,6 @@ class OtamatoneApp extends LitElement {
             ></otama-practice-panel>
           </div>
         </section>
-        <footer>マイクの音声と楽譜はブラウザ内で処理されます。</footer>
       </main>
       <div
         class="countdown-overlay"

@@ -133,6 +133,7 @@ export const controlStyles = css`
 `;
 
 export const iconStyles = css`
+  display: block;
   width: 1.2rem;
   height: 1.2rem;
   fill: currentColor;

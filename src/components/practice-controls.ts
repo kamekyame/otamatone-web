@@ -33,37 +33,10 @@ export class PracticeControls extends LitElement {
         align-items: center;
         gap: 0.45rem 0.65rem;
       }
-      h2 {
-        margin-right: 0.25rem;
-      }
       .transport {
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
-      }
-      #play {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-      }
-      .badge {
-        margin-left: auto;
-        padding: 0.25rem 0.7rem;
-        border-radius: var(--corner);
-        background: var(--accent-soft);
-        color: #075f81;
-        font-size: 0.85rem;
-      }
-      .badge.good {
-        color: var(--hit);
-      }
-      .badge.error {
-        color: var(--miss);
-      }
-      .position {
-        margin: 0;
-        color: var(--muted);
-        font-size: 0.85rem;
       }
       .octave-control {
         display: inline-flex;
@@ -77,24 +50,12 @@ export class PracticeControls extends LitElement {
         margin: 0;
         accent-color: var(--accent);
       }
-      .icon-button svg,
-      #play svg {
+      .icon-button svg {
         ${iconStyles}
       }
       @media (max-width: 35rem) {
         .toolbar {
           gap: 0.3rem;
-        }
-        h2 {
-          display: none;
-        }
-        .badge {
-          flex-basis: 100%;
-          margin-left: 0;
-          order: 2;
-        }
-        .position {
-          margin-left: auto;
         }
       }
     `,
@@ -107,7 +68,6 @@ export class PracticeControls extends LitElement {
     const disabled = view.loading || !view.scoreVisible;
     return html`
       <section class="card toolbar" aria-label="練習コントロール">
-        <h2>練習</h2>
         <label>
           <span class="sr-only">練習の進め方</span>
           <select
@@ -143,16 +103,17 @@ export class PracticeControls extends LitElement {
             <span aria-hidden="true">${unsafeSVG(previousIcon)}</span>
           </button>
           <button
-            class="primary"
+            class="icon-button primary"
             id="play"
             type="button"
+            aria-label=${view.playing ? '一時停止' : '練習を開始'}
+            title=${view.playing ? '一時停止' : '練習を開始'}
             ?disabled=${disabled}
             @click=${this.session.togglePlay}
           >
             <span aria-hidden="true"
               >${unsafeSVG(view.playing ? pauseIcon : playIcon)}</span
             >
-            ${view.playLabel}
           </button>
           <button
             class="icon-button"
@@ -200,10 +161,6 @@ export class PracticeControls extends LitElement {
         >
           <span aria-hidden="true">${unsafeSVG(repeatIcon)}</span>
         </button>
-        <span class="badge ${view.feedback.level}" id="feedback"
-          >${view.feedback.message}</span
-        >
-        <p class="position" id="position">${view.position}</p>
       </section>
     `;
   }
