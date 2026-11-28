@@ -1,20 +1,29 @@
 import type { LitElement } from 'lit';
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
-import miniOtamaUrl from './assets/mini-otama.svg?no-inline';
-import { makeScaleDemo, scaleKeys } from './demo';
+import miniOtamaUrl from '../assets/mini-otama.svg?no-inline';
+import { makeScaleDemo, makeTwinkleStarDemo, scaleKeys } from './demo';
 import {
   centsFrom,
+  initialPitchRangeStart,
   isMatch,
   makePitchReader,
-  nearOctave,
   noteName,
+  pitchForTarget,
+  pitchRangeStart,
   pitchWindowSize,
   updatePitchReadout,
   type Pitch,
-} from './pitch';
-import { lastAt, parseScore, readScore, type Score, type Span } from './score';
-import { makeScoreOverlay } from './score-overlay';
-import { drawStaffTargets } from './staff-targets';
+} from '../pitch';
+import {
+  adjacentNoteIndex,
+  lastAt,
+  parseScore,
+  readScore,
+  type Score,
+  type Span,
+} from '../score/score';
+import { makeScoreOverlay } from '../score/score-overlay';
+import { drawStaffTargets } from '../score/staff-targets';
 import { makeStepGate } from './step-practice';
 
 export type MicrophoneElement = HTMLElement & {
@@ -24,6 +33,13 @@ export type MicrophoneElement = HTMLElement & {
 };
 
 type Status = { message: string; level: '' | 'error' | 'good' };
+type GuidePoint = {
+  time: number;
+  midi: number;
+  hit: boolean | null;
+  at: number;
+  breakBefore: boolean;
+};
 const text = (message: string): Status => ({ message, level: '' });
 
 export function createPracticeSession(host: LitElement) {
@@ -37,24 +53,26 @@ export function createPracticeSession(host: LitElement) {
     listening: false,
     inputStatus: text('入力オフ'),
     displayPitch: undefined as Pitch | undefined,
-    tunerStart: 60,
-    stepStart: 60,
-    stepTarget: undefined as number | undefined,
-    stepPitch: undefined as number | undefined,
+    tunerStart: initialPitchRangeStart,
+    targetMidi: undefined as number | undefined,
     loading: true,
-    sample: true,
+    sampleId: 'scale-0',
     demoKey: 0,
     parts: [] as string[],
     part: 0,
     scoreVisible: false,
     scoreStatus: text(''),
+    scoreTitle: '',
+    scoreSubtitle: '',
+    scoreComposer: '',
+    scoreLyricist: '',
+    scoreRights: '',
     stepMode: false,
+    allowOctave: true,
     speed: '1',
     repeat: false,
-    playLabel: '練習を開始',
-    countIn: '',
-    position: '—',
-    feedback: text('楽譜を読み込んでください'),
+    playing: false,
+    countInBeat: 0,
   };
   let sheet: HTMLElement;
   let canvas: HTMLCanvasElement;
@@ -94,12 +112,15 @@ export function createPracticeSession(host: LitElement) {
   let lastDraw = 0;
   let lastSample = 0;
   let raf = 0;
-  let history: { time: number; midi: number; hit: boolean | null }[] = [];
+  let history: GuidePoint[] = [];
+  let historyBreak = true;
+  let stepAttempt: GuidePoint[] = [];
+  let stepGuideTime: number | undefined;
+  let stepMarker: GuidePoint | undefined;
   let peek: OpenSheetMusicDisplay['cursor']['Iterator'] | undefined;
 
   let pitch: Pitch | null = null;
   let pitchReadout: ReturnType<typeof updatePitchReadout> = null;
-  let lastPitchTarget: ReturnType<typeof targetAt>;
   let audio:
     | {
         context: AudioContext;
@@ -111,6 +132,12 @@ export function createPracticeSession(host: LitElement) {
   let requesting = false;
   let pageActive = false;
   let restartOnReturn = false;
+
+  function clearStepGuide() {
+    stepAttempt = [];
+    stepGuideTime = undefined;
+    stepMarker = undefined;
+  }
 
   function status(
     target: Status,
@@ -191,8 +218,9 @@ export function createPracticeSession(host: LitElement) {
     }
     pitch = null;
     pitchReadout = null;
-    lastPitchTarget = undefined;
     stepGate.interrupt();
+    clearStepGuide();
+    historyBreak = true;
     updateInputControls();
     status(view.inputStatus, message, error ? 'error' : '');
     updateView();
@@ -228,8 +256,9 @@ export function createPracticeSession(host: LitElement) {
     } else {
       pitch = null;
       pitchReadout = null;
-      lastPitchTarget = undefined;
       stepGate.interrupt();
+      clearStepGuide();
+      historyBreak = true;
       updateView();
     }
   }
@@ -422,75 +451,28 @@ export function createPracticeSession(host: LitElement) {
       scoreOverlay.plot(osmd, currentPart, note, midi, hit);
   }
 
-  function stripStart(previous: number, midi?: number, target?: number) {
-    if (target !== undefined) return Math.round(target) - 5;
-    return midi === undefined
-      ? previous
-      : 12 * Math.floor(Math.round(midi) / 12);
-  }
-
   function updateView() {
     const displayPitch = pitchReadout?.pitch;
     view.displayPitch = displayPitch;
-    view.tunerStart = stripStart(view.tunerStart, displayPitch?.midi);
     const stepMode = view.stepMode;
     const notes = stepMode && model ? activeNotes() : undefined;
     const stepTarget = notes?.[stepIndex];
-    view.stepTarget = stepTarget?.midi;
-    if (stepMode) {
-      view.stepPitch =
-        displayPitch && stepTarget
-          ? nearOctave(displayPitch.midi, stepTarget.midi)
-          : displayPitch?.midi;
-      view.stepStart = stripStart(
-        view.stepStart,
-        view.stepPitch,
-        view.stepTarget,
-      );
-    }
     if (model) {
       const beat = stepTarget?.start ?? model.beatAt(seconds);
       syncCursor(beat);
-      const measure =
-        model.measures[lastAt(model.measures, beat + 1e-7, (x) => x.at)];
-      const measureLabel = measure ? `小節 ${measure.number}　·　` : '';
       const target = stepMode ? stepTarget : targetAt(beat);
-      const total = model.secondsAt(model.end);
-      const done = seconds >= total;
-      view.position = notes
-        ? `${stepIndex} / ${notes.length} 音クリア${done || !measure ? '' : `　·　小節 ${measure.number}`}`
-        : `${measureLabel}${seconds.toFixed(1)} / ${total.toFixed(1)} 秒`;
-      const judgedPitch = lastPitchTarget === target ? displayPitch : undefined;
-      if (done) status(view.feedback, '練習終了', 'good');
-      else if (!target) status(view.feedback, '休符・演奏なし');
-      else if (!playing || countBeatMs || !audio)
-        status(
-          view.feedback,
-          `目標 ${noteName(target.midi)}${stepMode && playing && !audio ? ' · 音声入力を開始してください' : ''}`,
-        );
-      else if (!judgedPitch)
-        status(
-          view.feedback,
-          `目標 ${noteName(target.midi)}${displayPitch ? ' · 判定中' : ''}`,
-        );
-      else {
-        const cents = centsFrom(
-          nearOctave(judgedPitch.midi, target.midi),
-          target.midi,
-        );
-        const hit = isMatch(cents);
-        status(
-          view.feedback,
-          `目標 ${noteName(target.midi)} · ${hit ? '合っています' : cents > 0 ? '高い' : '低い'} (${Math.abs(Math.round(cents))} ¢)`,
-          hit ? 'good' : 'error',
-        );
-      }
+      view.targetMidi = target?.midi;
+      view.tunerStart = pitchRangeStart(
+        view.tunerStart,
+        displayPitch?.midi,
+        target?.midi,
+      );
     } else {
-      status(view.feedback, '楽譜を読み込んでください');
-      view.position = '—';
+      view.targetMidi = undefined;
+      view.tunerStart = pitchRangeStart(view.tunerStart, displayPitch?.midi);
     }
     host.requestUpdate();
-    if (!stepMode) drawChart();
+    drawChart();
   }
 
   function drawChart() {
@@ -511,7 +493,7 @@ export function createPracticeSession(host: LitElement) {
       ctx.fillStyle = chartColors.label;
       ctx.textAlign = 'center';
       ctx.fillText(
-        '楽譜を読み込むと、ここに音程バーが表示されます',
+        '楽譜を読み込むと、おたまガイドを表示します',
         width / 2,
         height / 2,
         width - 20,
@@ -522,7 +504,8 @@ export function createPracticeSession(host: LitElement) {
       right = width - 12,
       top = 16,
       bottom = height - 23;
-    const windowStart = Math.max(0, seconds - 2);
+    const guideTime = view.stepMode ? (stepGuideTime ?? seconds) : seconds;
+    const windowStart = Math.max(0, guideTime - 2);
     const windowEnd = windowStart + 8;
     const x = (time: number) =>
       left + ((time - windowStart) * (right - left)) / 8;
@@ -544,6 +527,7 @@ export function createPracticeSession(host: LitElement) {
       bars.push(note);
     }
     if (!bars.length) low = high = notes[first]?.midi ?? 60;
+    const points = [...history, ...stepAttempt];
     low = Math.floor(low) - 2;
     high = Math.ceil(high) + 2;
     const y = (midi: number) =>
@@ -570,31 +554,80 @@ export function createPracticeSession(host: LitElement) {
         end = x(model.secondsAt(note.end));
       ctx.fillRect(start, y(note.midi) - 4, Math.max(1, end - start - 2), 8);
     }
-    for (const point of history) {
-      const line = y(point.midi);
-      ctx.fillStyle =
-        point.hit === null
-          ? chartColors.free
-          : point.hit
-            ? chartColors.hit
-            : chartColors.miss;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const pointColor = (point: GuidePoint) =>
+      point.hit === null
+        ? chartColors.free
+        : point.hit
+          ? chartColors.hit
+          : chartColors.miss;
+    const overflow = (point: GuidePoint) =>
+      point.midi > high ? -1 : point.midi < low ? 1 : 0;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, top, right - left, bottom - top);
+    ctx.clip();
+    let previous: GuidePoint | undefined;
+    for (const point of points) {
+      ctx.strokeStyle = ctx.fillStyle = pointColor(point);
       ctx.beginPath();
-      ctx.arc(
-        x(point.time),
-        Math.min(bottom + 4, Math.max(top - 4, line)),
-        2.7,
-        0,
-        Math.PI * 2,
-      );
+      if (previous && !point.breakBefore && point.at - previous.at <= 100) {
+        ctx.moveTo(x(previous.time), y(previous.midi));
+        ctx.lineTo(x(point.time), y(point.midi));
+        ctx.stroke();
+      } else {
+        ctx.arc(x(point.time), y(point.midi), 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      previous = point;
+    }
+    if (stepMarker && !overflow(stepMarker)) {
+      ctx.fillStyle = pointColor(stepMarker);
+      ctx.beginPath();
+      ctx.arc(x(stepMarker.time), y(stepMarker.midi), 3, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
     ctx.fillStyle = chartColors.playhead;
     ctx.fillRect(
-      Math.min(right - 1, x(seconds)),
+      Math.min(right - 1, x(guideTime)),
       top - 7,
       1,
       bottom - top + 14,
     );
+    const markOverflow = (point: GuidePoint) => {
+      const direction = overflow(point);
+      if (!direction || point.time < windowStart || point.time > windowEnd)
+        return;
+      const markX = Math.max(left + 4, Math.min(right - 4, x(point.time)));
+      const tip = direction < 0 ? top + 1 : bottom - 1;
+      ctx.fillStyle = pointColor(point);
+      ctx.beginPath();
+      ctx.moveTo(markX, tip);
+      ctx.lineTo(markX - 4, tip - direction * 7);
+      ctx.lineTo(markX + 4, tip - direction * 7);
+      ctx.closePath();
+      ctx.fill();
+    };
+    let pending: GuidePoint | undefined;
+    for (const point of points) {
+      const direction = overflow(point);
+      if (
+        pending &&
+        (direction !== overflow(pending) ||
+          point.breakBefore ||
+          point.at - pending.at > 100)
+      ) {
+        markOverflow(pending);
+        pending = undefined;
+      }
+      if (direction && point.time >= windowStart && point.time <= windowEnd)
+        pending = point;
+    }
+    if (pending) markOverflow(pending);
+    if (stepMarker) markOverflow(stepMarker);
     ctx.restore();
     ctx.textAlign = 'center';
     ctx.fillStyle = chartColors.label;
@@ -625,10 +658,9 @@ export function createPracticeSession(host: LitElement) {
     if (countBeatMs) {
       if (now < playbackAnchor) {
         const count = Math.ceil((playbackAnchor - now) / countBeatMs);
-        view.countIn = `開始まで ${count} 拍`;
+        view.countInBeat = count;
       } else {
         clearCountIn();
-        view.playLabel = '一時停止';
         host.requestUpdate();
       }
     }
@@ -643,40 +675,96 @@ export function createPracticeSession(host: LitElement) {
       lastSample = now;
       pitch = audio.readPitch();
       pitchReadout = updatePitchReadout(pitchReadout, pitch, now);
+      const stablePitch = pitch ? pitchReadout?.pitch : undefined;
+      if (!stablePitch) historyBreak = true;
       if (playing && view.stepMode && model) {
         const notes = activeNotes();
         const note = notes[stepIndex];
         if (note) {
-          const midi = pitch ? nearOctave(pitch.midi, note.midi) : undefined;
+          const midi = stablePitch
+            ? pitchForTarget(stablePitch.midi, note.midi, view.allowOctave)
+            : undefined;
           const matched =
             midi !== undefined && isMatch(centsFrom(midi, note.midi));
           if (midi !== undefined) {
-            lastPitchTarget = note;
             plotPlayedNote(note, midi, matched);
           }
-          if (stepGate.sample(now, matched)) {
+          const advanced = stepGate.sample(now, matched);
+          if (stepGate.holding && midi !== undefined) {
+            const nextStart = notes[stepIndex + 1]?.start;
+            const end =
+              nextStart !== undefined && nextStart > note.start
+                ? Math.min(note.end, nextStart)
+                : note.end;
+            const startTime = model.secondsAt(note.start);
+            const time =
+              startTime +
+              (model.secondsAt(end) - startTime) * stepGate.progress;
+            const last = stepAttempt.at(-1);
+            if (
+              last &&
+              (now - last.at > 100 ||
+                (stepGuideTime !== undefined && time < stepGuideTime))
+            )
+              stepAttempt = [];
+            stepGuideTime = time;
+            stepMarker = undefined;
+            stepAttempt.push({
+              time,
+              midi,
+              hit: true,
+              at: now,
+              breakBefore: stepAttempt.length === 0,
+            });
+          } else {
+            clearStepGuide();
+            if (midi !== undefined)
+              stepMarker = {
+                time: model.secondsAt(note.start),
+                midi,
+                hit: matched,
+                at: now,
+                breakBefore: true,
+              };
+          }
+          if (advanced) {
+            history.push(...stepAttempt);
+            clearStepGuide();
             const next = notes[++stepIndex];
             seconds = next ? model.secondsAt(next.start) : total;
-            lastPitchTarget = undefined;
             const upcoming = next ?? (view.repeat ? notes[0] : undefined);
             stepGate.reset(
               upcoming !== undefined &&
                 isMatch(
                   centsFrom(
-                    nearOctave(note.midi, upcoming.midi),
+                    pitchForTarget(note.midi, upcoming.midi, view.allowOctave),
                     upcoming.midi,
                   ),
                 ),
             );
           }
         }
-      } else if (playing && !countBeatMs && pitch && model && seconds < total) {
+      } else if (
+        playing &&
+        !countBeatMs &&
+        stablePitch &&
+        model &&
+        seconds < total
+      ) {
         const note = targetAt(model.beatAt(seconds));
-        lastPitchTarget = note;
-        const midi = note ? nearOctave(pitch.midi, note.midi) : pitch.midi;
+        const midi = note
+          ? pitchForTarget(stablePitch.midi, note.midi, view.allowOctave)
+          : stablePitch.midi;
         const hit = note ? isMatch(centsFrom(midi, note.midi)) : null;
         if (note && hit !== null) plotPlayedNote(note, midi, hit);
-        history.push({ time: seconds, midi, hit });
+        history.push({
+          time: seconds,
+          midi,
+          hit,
+          at: now,
+          breakBefore: historyBreak,
+        });
+        historyBreak = false;
       }
     }
     const firstPitch = history[0];
@@ -687,7 +775,6 @@ export function createPracticeSession(host: LitElement) {
         resetPracticePosition();
         playbackAnchor = now;
         playbackOffset = seconds;
-        lastPitchTarget = undefined;
       } else pause();
     }
     if (now - lastDraw >= 30) {
@@ -699,21 +786,16 @@ export function createPracticeSession(host: LitElement) {
 
   function clearCountIn() {
     countBeatMs = 0;
-    view.countIn = '';
+    view.countInBeat = 0;
   }
 
   function pause() {
     playing = false;
+    view.playing = false;
     stepGate.interrupt();
-    lastPitchTarget = undefined;
+    clearStepGuide();
+    historyBreak = true;
     clearCountIn();
-    const advanced = view.stepMode ? stepIndex > 0 : seconds > 0;
-    view.playLabel =
-      model && seconds >= model.secondsAt(model.end)
-        ? 'もう一度練習'
-        : advanced
-          ? '練習を再開'
-          : '練習を開始';
     updateView();
   }
 
@@ -722,6 +804,8 @@ export function createPracticeSession(host: LitElement) {
     const firstBeat = view.stepMode ? (activeNotes()[0]?.start ?? 0) : 0;
     seconds = model?.secondsAt(firstBeat) ?? 0;
     history = [];
+    historyBreak = true;
+    clearStepGuide();
     playedNotes.clear();
     scoreOverlay.clear();
     syncCursor(firstBeat, true);
@@ -733,6 +817,27 @@ export function createPracticeSession(host: LitElement) {
     pause();
   }
 
+  function moveNote(direction: -1 | 1) {
+    if (!model || view.loading) return;
+    const notes = activeNotes();
+    if (!notes.length) return;
+    const beat = model.beatAt(seconds);
+    const index = view.stepMode
+      ? stepIndex + direction
+      : adjacentNoteIndex(notes, beat, direction);
+    if (index === undefined) return;
+    stepIndex = Math.max(0, Math.min(notes.length - 1, index));
+    const note = notes[stepIndex];
+    if (!note) throw new RangeError('Invalid practice note');
+    seconds = model.secondsAt(note.start);
+    history = [];
+    historyBreak = true;
+    clearStepGuide();
+    stepGate.reset();
+    syncCursor(note.start, true);
+    pause();
+  }
+
   function togglePlay() {
     if (!model || view.loading) return;
     if (playing) return pause();
@@ -741,11 +846,11 @@ export function createPracticeSession(host: LitElement) {
     playbackRate = Number(view.speed);
     if (!view.stepMode && seconds === 0) {
       countBeatMs = (model.secondsPerBeatAt(0) * 1000) / playbackRate;
-      view.countIn = '開始まで 4 拍';
+      view.countInBeat = 4;
     }
     playbackAnchor = performance.now() + countBeatMs * 4;
     playing = true;
-    view.playLabel = countBeatMs ? 'カウントを中止' : '一時停止';
+    view.playing = true;
     host.requestUpdate();
     scheduleFrame();
   }
@@ -757,6 +862,13 @@ export function createPracticeSession(host: LitElement) {
     playbackOffset += ((now - playbackAnchor) / 1000) * playbackRate;
     playbackAnchor = now;
     playbackRate = Number(view.speed);
+  }
+  function setOctaveAllowance(allowOctave: boolean) {
+    view.allowOctave = allowOctave;
+    stepGate.interrupt();
+    clearStepGuide();
+    historyBreak = true;
+    updateView();
   }
   function toggleRepeat() {
     view.repeat = !view.repeat;
@@ -780,7 +892,7 @@ export function createPracticeSession(host: LitElement) {
   async function load(getXml: () => Promise<string>, sample = false) {
     if (view.loading) return;
     view.loading = true;
-    view.sample = sample;
+    if (!sample) view.sampleId = '';
     pause();
     playedNotes.clear();
     scoreOverlay.clear();
@@ -793,6 +905,14 @@ export function createPracticeSession(host: LitElement) {
         osmd = new OpenSheetMusicDisplay(sheet, {
           autoResize: false,
           followCursor: false,
+          drawingParameters: 'compacttight',
+          drawCredits: false,
+          drawTitle: false,
+          drawSubtitle: false,
+          drawComposer: false,
+          drawLyricist: false,
+          drawPartNames: false,
+          drawPartAbbreviations: false,
           cursorsOptions: [
             { type: 0, color: chartColors.target, alpha: 0.35, follow: false },
           ],
@@ -800,13 +920,24 @@ export function createPracticeSession(host: LitElement) {
         osmd.EngravingRules.CursorIgnoreRepetitions = true;
       }
       osmd.setOptions({
-        drawPartNames: !sample,
-        drawPartAbbreviations: !sample,
+        drawingParameters: 'compacttight',
+        drawCredits: false,
+        drawTitle: false,
+        drawSubtitle: false,
+        drawComposer: false,
+        drawLyricist: false,
+        drawPartNames: false,
+        drawPartAbbreviations: false,
       });
       await osmd.load(xml);
       renderedWidth = 0;
       peek = undefined;
       model = parsed;
+      view.scoreTitle = model.title;
+      view.scoreSubtitle = model.subtitle;
+      view.scoreComposer = model.composer;
+      view.scoreLyricist = model.lyricist;
+      view.scoreRights = model.rights;
       view.parts = model.parts.map((p) => p.label);
       view.part = 0;
       view.scoreVisible = true;
@@ -824,6 +955,11 @@ export function createPracticeSession(host: LitElement) {
     } catch (error) {
       model = undefined;
       view.scoreVisible = false;
+      view.scoreTitle = '';
+      view.scoreSubtitle = '';
+      view.scoreComposer = '';
+      view.scoreLyricist = '';
+      view.scoreRights = '';
       view.parts = [];
       view.part = 0;
       status(
@@ -843,16 +979,31 @@ export function createPracticeSession(host: LitElement) {
     if (selected) void load(() => readScore(selected));
     file.value = '';
   }
-  function loadSample(index = view.demoKey) {
+  function loadSample(sample: string | number = `scale-${view.demoKey}`) {
     if (view.loading) return;
+    if (sample === 'twinkle') {
+      view.sampleId = 'twinkle';
+      return load(async () => makeTwinkleStarDemo(), true);
+    }
+    const index =
+      typeof sample === 'number'
+        ? sample
+        : Number(sample.startsWith('scale-') ? sample.slice(6) : NaN);
+    const key = scaleKeys[index];
+    if (!Number.isInteger(index) || !key)
+      throw new RangeError('Unknown sample score');
     view.demoKey = index;
-    const key = scaleKeys[index] ?? scaleKeys[0];
+    view.sampleId = `scale-${index}`;
     return load(async () => makeScaleDemo(key), true);
   }
   function selectDevice(value: string) {
+    if (value === view.device) return;
+    const restart = Boolean(audio || requesting);
+    if (restart) stopInput();
     view.device = value;
     configureNativeInput();
     host.requestUpdate();
+    if (restart) void startInput();
   }
   function toggleInput() {
     if (audio || requesting) stopInput();
@@ -963,7 +1114,7 @@ export function createPracticeSession(host: LitElement) {
     resizeObserver = new ResizeObserver((entries) => {
       for (const { target } of entries) {
         if (target === sheet) renderScore();
-        else if (!view.stepMode) drawChart();
+        else drawChart();
       }
     });
     resizeObserver.observe(sheet);
@@ -1003,7 +1154,10 @@ export function createPracticeSession(host: LitElement) {
     selectDevice,
     togglePlay,
     rewind,
+    previousNote: () => moveNote(-1),
+    nextNote: () => moveNote(1),
     selectSpeed,
+    setOctaveAllowance,
     toggleRepeat,
     selectPart,
     selectStaff,

@@ -18,6 +18,10 @@ export type Part = {
 };
 export type Score = {
   title: string;
+  subtitle: string;
+  composer: string;
+  lyricist: string;
+  rights: string;
   parts: Part[];
   measures: { at: number; number: string }[];
   end: number;
@@ -106,6 +110,19 @@ export function lastAt<T extends object>(
   return lo - 1;
 }
 
+export function adjacentNoteIndex(
+  notes: readonly { start: number }[],
+  beat: number,
+  direction: -1 | 1,
+) {
+  if (!notes.length) return undefined;
+  const index =
+    direction < 0
+      ? lastAt(notes, beat - 1e-7, (note) => note.start)
+      : lastAt(notes, beat + 1e-7, (note) => note.start) + 1;
+  return Math.max(0, Math.min(notes.length - 1, index));
+}
+
 export function tempoMap(changes: Tempo[]) {
   const initial = { at: 0, bpm: 120, seconds: 0 };
   const points = [initial];
@@ -143,9 +160,22 @@ export function parseScore(xml: string): Score {
   const root = doc.documentElement;
   if (root.localName !== 'score-partwise')
     throw new Error('MuseScoreのパート形式のMusicXMLを書き出してください。');
-  const title =
-    doc.querySelector('work-title, movement-title')?.textContent?.trim() ||
-    '無題の楽譜';
+  const workTitle = doc.querySelector('work-title')?.textContent?.trim() ?? '';
+  const movementTitle =
+    doc.querySelector('movement-title')?.textContent?.trim() ?? '';
+  const title = workTitle || movementTitle || '無題の楽譜';
+  const subtitle =
+    workTitle && movementTitle && movementTitle !== workTitle
+      ? movementTitle
+      : '';
+  const creator = (type: string) =>
+    Array.from(doc.querySelectorAll('identification creator'))
+      .find((element) => element.getAttribute('type') === type)
+      ?.textContent?.trim() ?? '';
+  const composer = creator('composer');
+  const lyricist = creator('lyricist');
+  const rights =
+    doc.querySelector('identification rights')?.textContent?.trim() ?? '';
   const sizes: number[] = [];
   const labels: string[] = [];
   const tempoEvents: {
@@ -297,6 +327,10 @@ export function parseScore(xml: string): Score {
     }));
   return {
     title,
+    subtitle,
+    composer,
+    lyricist,
+    rights,
     measures,
     end,
     ...tempoMap(changes),
