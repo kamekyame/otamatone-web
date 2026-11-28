@@ -23,6 +23,9 @@
 body {
   margin: 0;
 }
+otamatone-app {
+  display: block;
+}
 .shell {
   display: grid;
   gap: 0.4rem;
