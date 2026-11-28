@@ -1,6 +1,6 @@
 import type { LitElement } from 'lit';
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
-import miniOtamaUrl from './assets/mini-otama.svg?no-inline';
+import miniOtamaUrl from '../assets/mini-otama.svg?no-inline';
 import { makeScaleDemo, scaleKeys } from './demo';
 import {
   centsFrom,
@@ -11,10 +11,16 @@ import {
   pitchWindowSize,
   updatePitchReadout,
   type Pitch,
-} from './pitch';
-import { lastAt, parseScore, readScore, type Score, type Span } from './score';
-import { makeScoreOverlay } from './score-overlay';
-import { drawStaffTargets } from './staff-targets';
+} from '../pitch';
+import {
+  lastAt,
+  parseScore,
+  readScore,
+  type Score,
+  type Span,
+} from '../score/score';
+import { makeScoreOverlay } from '../score/score-overlay';
+import { drawStaffTargets } from '../score/staff-targets';
 import { makeStepGate } from './step-practice';
 
 export type MicrophoneElement = HTMLElement & {

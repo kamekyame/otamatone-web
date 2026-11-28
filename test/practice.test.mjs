@@ -9,9 +9,9 @@ import {
   pitchWindowSize,
   updatePitchReadout,
 } from '../src/pitch.ts';
-import { tempoMap } from '../src/score.ts';
-import { makeStepGate } from '../src/step-practice.ts';
-import { staffOffset } from '../src/score-overlay.ts';
+import { tempoMap } from '../src/score/score.ts';
+import { makeStepGate } from '../src/practice/step-practice.ts';
+import { staffOffset } from '../src/score/score-overlay.ts';
 
 test('played pitch follows fractional diatonic positions across staff steps and octaves', () => {
   assert.equal(staffOffset(60, 0), 0);
