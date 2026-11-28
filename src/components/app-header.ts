@@ -11,16 +11,27 @@ class AppHeader extends LitElement {
         min-width: 0;
       }
       .workspace-nav {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         gap: 0.5rem;
+      }
+      .title {
+        grid-area: 1 / 1;
       }
       h1 {
         font-size: clamp(1.1rem, 2vw, 1.75rem);
         margin: 0;
       }
+      .header-controls {
+        grid-area: 2 / 1 / 3 / 3;
+        min-width: 0;
+      }
+      .header-controls slot {
+        display: block;
+      }
       .github-link {
+        grid-area: 1 / 2;
         --logo-width: 1.5rem;
         display: block;
         flex: none;
@@ -36,6 +47,17 @@ class AppHeader extends LitElement {
         width: var(--logo-width);
         height: auto;
       }
+      @media (min-width: 64rem) {
+        .workspace-nav {
+          grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+        .header-controls {
+          grid-area: 1 / 2;
+        }
+        .github-link {
+          grid-area: 1 / 3;
+        }
+      }
       @media (max-width: 35rem) {
         h1 {
           font-size: 1rem;
@@ -47,7 +69,8 @@ class AppHeader extends LitElement {
   protected override render() {
     return html`
       <div class="workspace-nav">
-        <h1>オタマトーン練習サイト</h1>
+        <div class="title"><h1>オタマトーン練習サイト</h1></div>
+        <div class="header-controls"><slot name="controls"></slot></div>
         <a
           class="github-link"
           href="https://github.com/kamekyame/otamatone-web"

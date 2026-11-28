@@ -1,31 +1,28 @@
 import { css, html, LitElement } from 'lit';
-import { centsFrom, noteName, type Pitch } from '../pitch';
-import { baseStyles, iconStyles } from './shared';
+import { noteName, type Pitch } from '../pitch';
+import { baseStyles } from './shared';
 import './note-strip';
 
 class LiveTuner extends LitElement {
   static override properties = {
     displayPitch: { attribute: false },
-    listening: { type: Boolean },
     tunerStart: { type: Number },
+    targetMidi: { type: Number },
   };
   static override styles = [
     baseStyles,
     css`
       :host {
         display: flex;
-        position: sticky;
-        top: 0;
-        z-index: 5;
         min-width: 0;
       }
       .live-pitch {
         display: flex;
         flex: 1;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.35rem 0.85rem;
-        padding: 0.4rem 0.65rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.45rem;
+        padding: 0.45rem;
         background: var(--accent-soft);
         border: 1px solid var(--border);
         border-radius: var(--corner);
@@ -34,109 +31,75 @@ class LiveTuner extends LitElement {
         min-width: 0;
       }
       .live-reading {
-        display: flex;
-        flex: 0 1 14rem;
-        flex-wrap: wrap;
-        gap: 0.45rem 0.65rem;
+        display: grid;
+        flex: none;
+        grid-template-columns: 4ch 9ch;
         align-items: center;
+        justify-items: stretch;
+        justify-content: center;
+        gap: 0.2rem 0.4rem;
+        text-align: center;
+      }
+      .live-reading > span:first-child {
+        grid-column: 1 / -1;
       }
       strong {
-        min-width: 3ch;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         color: #183347;
       }
+      #live-frequency {
+        font-size: 0.85rem;
+        white-space: nowrap;
+      }
       otama-note-strip {
-        flex: 1 1 15rem;
+        flex: 1;
+        min-height: 0;
         margin: 0;
-        --note-cell-height: 1.7rem;
-        --note-cell-padding: 0.15rem;
       }
-      .pitch-signal {
-        display: inline-flex;
-        color: var(--accent);
-      }
-      .pitch-signal svg {
-        ${iconStyles}
-      }
-      .pitch-signal path {
-        transform-box: fill-box;
-        transform-origin: center;
-        animation: listening 1s ease-in-out infinite alternate;
-      }
-      .pitch-signal path:nth-child(2) {
-        animation-delay: -0.35s;
-      }
-      .pitch-signal path:nth-child(3) {
-        animation-delay: -0.7s;
-      }
-      @keyframes listening {
-        from {
-          transform: scaleY(0.45);
-          opacity: 0.55;
-        }
-        to {
-          transform: scaleY(1);
-          opacity: 1;
-        }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .pitch-signal path {
-          animation: none;
-        }
-      }
-      @media (min-width: 48rem) {
-        :host {
-          position: static;
-        }
+      @media (max-width: 47.99rem) {
         .live-pitch {
-          align-content: center;
+          height: auto;
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: center;
+          padding: 0.35rem 0.55rem;
         }
-      }
-      @media (max-width: 35rem) {
-        .live-pitch {
-          padding: 0.2rem 0.55rem;
+        .live-reading {
+          flex: 1 1 100%;
+          gap: 0.35rem 0.65rem;
+        }
+        otama-note-strip {
+          flex: 1 1 100%;
+          --note-cell-height: 1.7rem;
+          --note-cell-padding: 0.15rem;
         }
       }
     `,
   ];
   declare displayPitch: Pitch | undefined;
-  declare listening: boolean;
   declare tunerStart: number;
+  declare targetMidi: number | undefined;
 
   protected override render() {
-    const { displayPitch, listening, tunerStart } = this;
+    const { displayPitch, tunerStart } = this;
     const midi = displayPitch?.midi;
-    const cents =
-      midi === undefined ? 0 : Math.round(centsFrom(midi, Math.round(midi)));
     return html`
-      <div class="live-pitch" aria-label="チューナー">
+      <div class="live-pitch" role="group" aria-label="入力音と目標音">
         <div class="live-reading">
-          <span>入力音</span
-          ><strong id="live-note"
+          <span>入力音</span>
+          <strong id="live-note"
             >${midi === undefined ? '—' : noteName(midi)}</strong
           >
           <span id="live-frequency"
             >${displayPitch ? `${displayPitch.hz.toFixed(1)} Hz` : '— Hz'}</span
           >
-          <span id="live-cents" ?hidden=${!displayPitch}
-            >${cents > 0 ? '+' : ''}${cents} ¢</span
-          >
-          <span
-            id="pitch-signal"
-            class="pitch-signal"
-            role="img"
-            aria-label="音を待っています"
-            title="音を待っています"
-            ?hidden=${Boolean(displayPitch) || !listening}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 9v6" />
-              <path d="M12 4v16" />
-              <path d="M19 9v6" />
-            </svg>
-          </span>
         </div>
-        <otama-note-strip .start=${tunerStart} .midi=${midi}></otama-note-strip>
+        <otama-note-strip
+          .start=${tunerStart}
+          .midi=${midi}
+          .target=${this.targetMidi}
+          .vertical=${true}
+        ></otama-note-strip>
       </div>
     `;
   }

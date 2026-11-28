@@ -6,18 +6,60 @@ export const centsFrom = (midi: number, target: number) =>
   (midi - target) * 100;
 export const nearOctave = (midi: number, target: number) =>
   midi + 12 * Math.round((target - midi) / 12);
+export const pitchForTarget = (
+  midi: number,
+  target: number,
+  allowOctave: boolean,
+) => (allowOctave ? nearOctave(midi, target) : midi);
+export const pitchRangeSize = 24;
+export const initialPitchRangeStart = 57;
+export function pitchRangeStart(
+  previous: number,
+  midi?: number,
+  target?: number,
+) {
+  const pitches = [target, midi]
+    .filter((pitch): pitch is number => pitch !== undefined)
+    .map(Math.round);
+  const first = pitches[0];
+  if (first === undefined) return previous;
+  const rangeFor = (values: number[]) => ({
+    min: Math.ceil((Math.max(...values) - pitchRangeSize + 1 - previous) / 12),
+    max: Math.floor((Math.min(...values) - previous) / 12),
+  });
+  let { min, max } = rangeFor(pitches);
+  if (min > max) ({ min, max } = rangeFor([Math.round(midi ?? first)]));
+  return previous + 12 * Math.max(min, Math.min(0, max));
+}
 export const isMatch = (cents: number) => Math.abs(cents) <= matchCents + 1e-7;
 const names = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 
 export type Pitch = { hz: number; midi: number };
-type PitchReadout = { pitch: Pitch; at: number } | null;
+type PitchReadout = { pitch: Pitch; at: number; recent: number[] } | null;
 
 export function updatePitchReadout(
   previous: PitchReadout,
   sample: Pitch | null,
   now: number,
 ): PitchReadout {
-  if (sample) return { pitch: sample, at: now };
+  if (sample) {
+    if (!previous || now - previous.at >= 100)
+      return { pitch: sample, at: now, recent: [sample.midi] };
+    const recent = [...previous.recent, sample.midi].slice(-3);
+    const ordered = [...recent].sort((a, b) => a - b);
+    const stable = ordered[Math.floor((ordered.length - 1) / 2)];
+    if (stable === undefined) throw new RangeError('Invalid pitch sample');
+    const change = stable - previous.pitch.midi;
+    const midi =
+      Math.abs(change) > 0.5 ? stable : previous.pitch.midi + change * 0.5;
+    const pitch =
+      midi === previous.pitch.midi
+        ? previous.pitch
+        : midi === sample.midi
+          ? sample
+          : { midi, hz: 440 * 2 ** ((midi - 69) / 12) };
+    return { pitch, at: now, recent };
+  }
   return previous && now - previous.at < 250 ? previous : null;
 }
 

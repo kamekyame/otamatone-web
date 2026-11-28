@@ -135,9 +135,5 @@ export const controlStyles = css`
 export const iconStyles = css`
   width: 1.2rem;
   height: 1.2rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  fill: currentColor;
 `;

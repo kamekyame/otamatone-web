@@ -2,6 +2,9 @@ import { css, html, LitElement } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { createRef, ref } from 'lit/directives/ref.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
+import micIcon from '@material-symbols/svg-400/outlined/mic.svg?raw';
+import stopIcon from '@material-symbols/svg-400/outlined/stop.svg?raw';
 import type { MicrophoneElement } from '../practice/practice-session';
 import {
   baseStyles,
@@ -21,8 +24,11 @@ export class AudioInput extends LitElement {
     controlStyles,
     css`
       .input-bar {
+        display: flex;
+        align-items: center;
         gap: 0.35rem 0.6rem;
         font-size: 0.875rem;
+        padding: 0.2rem 0;
       }
       .device-control {
         display: inline-flex;
@@ -71,7 +77,7 @@ export class AudioInput extends LitElement {
   protected override render() {
     const { view } = this.session;
     return html`
-      <section class="card controls input-bar" aria-label="音声入力">
+      <section class="controls input-bar" aria-label="音声入力">
         <label class="device-control">
           音声入力
           <select
@@ -107,13 +113,10 @@ export class AudioInput extends LitElement {
           title=${view.inputLabel}
           @click=${this.session.toggleInput}
         >
-          <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="9" y="3" width="6" height="12" rx="3" />
-            <path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8" />
-          </svg>
-          <svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="6" y="6" width="12" height="12" fill="currentColor" />
-          </svg>
+          <span class="mic-icon" aria-hidden="true">${unsafeSVG(micIcon)}</span>
+          <span class="stop-icon" aria-hidden="true"
+            >${unsafeSVG(stopIcon)}</span
+          >
         </button>
         <button
           id="input-resume"

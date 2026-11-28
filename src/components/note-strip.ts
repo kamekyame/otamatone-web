@@ -1,99 +1,163 @@
 import { css, html, LitElement } from 'lit';
-import { classMap } from 'lit/directives/class-map.js';
-import { styleMap } from 'lit/directives/style-map.js';
-import { noteName } from '../pitch';
+import { initialPitchRangeStart, noteName, pitchRangeSize } from '../pitch';
 import { baseStyles } from './shared';
-
-const stripIndexes = Array.from({ length: 12 }, (_, i) => i);
 
 class NoteStrip extends LitElement {
   static override properties = {
     start: { type: Number },
     midi: { type: Number },
     target: { type: Number },
+    vertical: { type: Boolean, reflect: true },
   };
   static override styles = [
     baseStyles,
     css`
       :host {
         display: block;
-        width: min(100%, 42rem);
+        width: 100%;
+        min-width: 0;
+        --note-cell-height: 1.15rem;
+        --note-cell-padding: 0.1rem;
       }
-      .tuner-notes {
+      .strip {
         position: relative;
-      }
-      .tuner-note-cells {
         display: grid;
-        grid-template-columns: repeat(12, minmax(0, 1fr));
+        grid-template-columns: repeat(${pitchRangeSize}, minmax(0, 1fr));
+        gap: 2px;
+        min-height: var(--note-cell-height);
+      }
+      .note-cell {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        padding: var(--note-cell-padding);
         border: 1px solid var(--border);
-        border-radius: var(--corner);
-        overflow: hidden;
-      }
-      .tuner-note-cells span {
-        display: grid;
-        place-items: center;
-        min-height: var(--note-cell-height, 2.65rem);
-        padding-top: var(--note-cell-padding, 0.3rem);
-        background: #f6fbfd;
+        border-radius: 0.2rem;
+        background: var(--surface);
         color: var(--muted);
-        font-size: clamp(0.6rem, 2.4vw, 0.9rem);
-        font-weight: 650;
+        font-size: 0.72rem;
+        line-height: 1;
         white-space: nowrap;
+        writing-mode: horizontal-tb;
+        text-orientation: mixed;
+        font-variant-numeric: tabular-nums;
       }
-      .tuner-note-cells span + span {
-        border-left: 1px solid var(--border);
+      .note-cell.is-target {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: #183347;
+        font-weight: 700;
       }
-      .tuner-note-cells .current {
-        background: var(--accent);
-        color: white;
-      }
-      .tuner-note-cells .target {
-        box-shadow: inset 0 0 0 2px var(--accent);
-      }
-      .tuner-note-cells .target.current {
-        background: var(--hit);
-      }
-      .tuner-note-marker {
+      .current-marker {
         position: absolute;
-        top: -0.3rem;
-        left: clamp(0.3rem, var(--pitch-position), 100% - 0.3rem);
+        z-index: 1;
+        pointer-events: none;
+        background: #6e3793;
+      }
+      :host([vertical]) {
+        width: auto;
+        height: 100%;
+        flex: 1;
+        min-height: 0;
+      }
+      :host([vertical]) .strip {
+        display: flex;
+        flex-direction: column-reverse;
+        height: 100%;
+        min-height: 0;
+      }
+      :host([vertical]) .note-cell {
+        flex: 1;
+      }
+      :host([vertical]) .current-marker {
+        left: 0;
+        right: 0;
+        top: calc(100% - var(--pitch-position));
+        height: 3px;
+        transform: translateY(-50%);
+      }
+      :host(:not([vertical])) .current-marker {
+        top: 0;
+        bottom: 0;
+        left: var(--pitch-position);
+        width: 3px;
         transform: translateX(-50%);
-        width: 0.6rem;
-        height: 0.85rem;
-        background: var(--hit);
-        border: 1px solid white;
+      }
+      @media (max-width: 47.99rem) {
+        :host([vertical]) {
+          width: 100%;
+          height: auto;
+          flex: 1 1 100%;
+        }
+        :host([vertical]) .strip {
+          display: grid;
+          flex-direction: initial;
+          height: auto;
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          grid-template-rows: repeat(2, minmax(var(--note-cell-height), auto));
+        }
+        :host([vertical]) .current-marker {
+          top: 0;
+          bottom: 0;
+          left: var(--pitch-position);
+          right: auto;
+          width: 3px;
+          height: auto;
+          transform: translateX(-50%);
+        }
+        :host([vertical]) .note-cell {
+          min-height: var(--note-cell-height);
+          font-size: 0.78rem;
+        }
       }
     `,
   ];
+
   declare start: number;
   declare midi: number | undefined;
   declare target: number | undefined;
+  declare vertical: boolean;
+
+  constructor() {
+    super();
+    this.start = initialPitchRangeStart;
+    this.midi = undefined;
+    this.target = undefined;
+    this.vertical = false;
+  }
 
   protected override render() {
-    const { start, midi, target } = this;
-    const current = midi === undefined ? undefined : Math.round(midi);
-    const goal = target === undefined ? undefined : Math.round(target);
+    const notes = Array.from(
+      { length: pitchRangeSize },
+      (_, index) => this.start + index,
+    );
+    const current = this.midi === undefined ? undefined : Math.round(this.midi);
+    const target =
+      this.target === undefined ? undefined : Math.round(this.target);
+    const currentPosition =
+      this.midi === undefined || current === undefined
+        ? undefined
+        : (this.midi - current + 0.5) * 100;
+
     return html`
-      <div
-        class="tuner-notes"
-        aria-hidden="true"
-        style=${styleMap({
-          '--pitch-position':
-            midi === undefined
-              ? undefined
-              : `${((midi - start + 0.5) / stripIndexes.length) * 100}%`,
-        })}
-      >
-        <div class="tuner-note-cells">
-          ${stripIndexes.map((index) => {
-            const note = start + index;
-            return html`<span
-              class=${classMap({ current: note === current, target: note === goal })}
-              >${noteName(note)}</span
-            >`;
-          })}
-        </div>
-        <span class="tuner-note-marker" ?hidden=${midi === undefined}></span>
+      <div class="strip" aria-hidden="true">
+        ${notes.map(
+          (midi) => html`
+            <div class="note-cell ${midi === target ? 'is-target' : ''}">
+              ${noteName(midi)}
+              ${
+                midi === current && currentPosition !== undefined
+                  ? html`<span
+                      class="current-marker"
+                      style=${`--pitch-position: ${currentPosition}%`}
+                    ></span>`
+                  : ''
+              }
+            </div>
+          `,
+        )}
       </div>
     `;
   }

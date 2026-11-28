@@ -1,6 +1,8 @@
 import { css, html, LitElement } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { createRef, ref } from 'lit/directives/ref.js';
+import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
+import folderOpenIcon from '@material-symbols/svg-400/outlined/folder_open.svg?raw';
 import { scaleKeys } from '../practice/demo';
 import {
   baseStyles,
@@ -22,6 +24,22 @@ export class ScorePanel extends LitElement {
       .score-panel {
         display: flex;
         flex-direction: column;
+        flex: none;
+        height: auto;
+        width: 100%;
+        min-width: 0;
+      }
+      .score-meta {
+        min-width: 0;
+        margin: -0.15rem 0 0.45rem;
+      }
+      .score-meta h2 {
+        overflow-wrap: anywhere;
+      }
+      .score-meta p {
+        margin: 0.15rem 0 0;
+        color: var(--muted);
+        font-size: 0.8rem;
       }
       #score-status {
         margin: 0 0 0.35rem;
@@ -34,15 +52,22 @@ export class ScorePanel extends LitElement {
       .icon-button svg {
         ${iconStyles}
       }
-      #part,
-      #demo-key {
+      #part {
         max-width: min(34vw, 16rem);
+      }
+      #sample-score {
+        max-width: min(70vw, 22rem);
       }
       #score {
         color-scheme: light;
         background: #fff;
         border-radius: var(--corner);
-        height: clamp(8.5rem, 24svh, 15rem);
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+        max-height: 65svh;
+        min-height: 0;
         overflow: auto;
       }
       #score:focus-visible {
@@ -77,24 +102,12 @@ export class ScorePanel extends LitElement {
           transition: none;
         }
       }
-      @media (min-width: 48rem) {
-        #score {
-          flex: 1 0 8rem;
-          height: 0;
-          contain: size;
-        }
-      }
-      @media (min-width: 48rem) and (max-height: 42rem) {
-        #score {
-          flex-basis: 7rem;
-        }
-      }
       @media (max-width: 35rem) {
         .score-tools {
           font-size: 0.8rem;
         }
         #score {
-          height: clamp(6.5rem, 18svh, 12rem);
+          max-height: 55svh;
         }
       }
     `,
@@ -112,35 +125,33 @@ export class ScorePanel extends LitElement {
     return html`
       <div class="card score-panel">
         <div class="heading-row">
-          <h2>楽譜</h2>
+          <div class="score-meta">
+            <h2>${view.scoreTitle || '楽譜'}</h2>
+            <p
+              ?hidden=${!view.scoreSubtitle && !view.scoreComposer && !view.scoreLyricist && !view.scoreRights}
+            >
+              ${[view.scoreSubtitle, view.scoreComposer, view.scoreLyricist, view.scoreRights].filter(Boolean).join(' · ')}
+            </p>
+          </div>
           <div class="controls score-tools">
-            <label id="demo-key-control" ?hidden=${!view.sample}>
-              <span class="sr-only">音階の調</span>
+            <label id="sample-control">
+              <span>サンプル楽譜</span>
               <select
-                id="demo-key"
+                id="sample-score"
+                .value=${live(view.sampleId)}
                 ?disabled=${view.loading}
-                @change=${this.onDemoKeyChange}
+                @change=${this.onSampleChange}
               >
+                <option value="" disabled>選んでください</option>
                 ${scaleKeys.map(
                   ({ label }, index) =>
-                    html`<option
-                      value=${index}
-                      .selected=${live(view.demoKey === index)}
-                    >
-                      ${label}
+                    html`<option value=${`scale-${index}`}>
+                      音階練習：${label}
                     </option>`,
                 )}
+                <option value="twinkle">きらきら星</option>
               </select>
             </label>
-            <button
-              id="demo"
-              type="button"
-              ?hidden=${view.sample}
-              ?disabled=${view.loading}
-              @click=${this.onDemoClick}
-            >
-              音階練習に戻る
-            </button>
             <label id="part-control" ?hidden=${!showParts}>
               <span class="sr-only">パート</span>
               <select
@@ -172,9 +183,7 @@ export class ScorePanel extends LitElement {
               ?disabled=${view.loading}
               @click=${this.onOpenClick}
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 19V5h6l3 3h9v3M3 19l4-8h15l-4 8z" />
-              </svg>
+              <span aria-hidden="true">${unsafeSVG(folderOpenIcon)}</span>
             </button>
             <input
               id="file"
@@ -208,12 +217,8 @@ export class ScorePanel extends LitElement {
     `;
   }
 
-  private onDemoClick() {
-    void this.session.loadSample();
-  }
-
-  private onDemoKeyChange(event: Event) {
-    void this.session.loadSample(Number(selectValue(event)));
+  private onSampleChange(event: Event) {
+    void this.session.loadSample(selectValue(event));
   }
 
   private onPartChange(event: Event) {

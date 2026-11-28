@@ -53,3 +53,102 @@ export function makeScaleDemo(key: (typeof scaleKeys)[number]) {
   </part>
 </score-partwise>`;
 }
+
+export function makeTwinkleStarDemo() {
+  const bars = [
+    [
+      ['C', 4, 1],
+      ['C', 4, 1],
+      ['G', 4, 1],
+      ['G', 4, 1],
+    ],
+    [
+      ['A', 4, 1],
+      ['A', 4, 1],
+      ['G', 4, 2],
+    ],
+    [
+      ['F', 4, 1],
+      ['F', 4, 1],
+      ['E', 4, 1],
+      ['E', 4, 1],
+    ],
+    [
+      ['D', 4, 1],
+      ['D', 4, 1],
+      ['C', 4, 2],
+    ],
+    [
+      ['G', 4, 1],
+      ['G', 4, 1],
+      ['F', 4, 1],
+      ['F', 4, 1],
+    ],
+    [
+      ['E', 4, 1],
+      ['E', 4, 1],
+      ['D', 4, 2],
+    ],
+    [
+      ['G', 4, 1],
+      ['G', 4, 1],
+      ['F', 4, 1],
+      ['F', 4, 1],
+    ],
+    [
+      ['E', 4, 1],
+      ['E', 4, 1],
+      ['D', 4, 2],
+    ],
+    [
+      ['C', 4, 1],
+      ['C', 4, 1],
+      ['G', 4, 1],
+      ['G', 4, 1],
+    ],
+    [
+      ['A', 4, 1],
+      ['A', 4, 1],
+      ['G', 4, 2],
+    ],
+    [
+      ['F', 4, 1],
+      ['F', 4, 1],
+      ['E', 4, 1],
+      ['E', 4, 1],
+    ],
+    [
+      ['D', 4, 1],
+      ['D', 4, 1],
+      ['C', 4, 2],
+    ],
+  ] as const;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <work><work-title>きらきら星</work-title></work>
+  <identification><creator type="composer">フランス民謡（伝承曲）</creator></identification>
+  <part-list><score-part id="P1"><part-name>オタマトーン</part-name></score-part></part-list>
+  <part id="P1">
+    ${bars
+      .map(
+        (bar, index) => `<measure number="${index + 1}">
+      ${
+        index === 0
+          ? `<attributes><divisions>1</divisions><key><fifths>0</fifths><mode>major</mode></key>
+      <time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>
+      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit>
+      <per-minute>90</per-minute></metronome></direction-type><sound tempo="90"/></direction>`
+          : ''
+      }
+      ${bar
+        .map(
+          ([step, octave, duration]) =>
+            `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>${duration}</duration><type>${duration === 2 ? 'half' : 'quarter'}</type></note>`,
+        )
+        .join('')}
+    </measure>`,
+      )
+      .join('')}
+  </part>
+</score-partwise>`;
+}
